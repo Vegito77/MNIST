@@ -1,0 +1,9 @@
+# Configs/config.py
+
+hyperparams = {
+    'batch_size': 64,
+    'epochs': 10,
+    'learning_rate': 0.001,
+    'hidden_units': 128,
+    'dropout_rate': 0.2
+}
