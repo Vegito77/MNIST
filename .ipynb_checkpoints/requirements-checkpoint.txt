@@ -1,0 +1,6 @@
+tensorflow==2.11.0
+tensorflow-datasets==4.8.2
+numpy
+pandas
+matplotlib
+pyyaml  # if using YAML configs
