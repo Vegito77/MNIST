@@ -1,6 +1,6 @@
 import datetime
 import tensorflow as tf
-from tensorflow.keras.callbacks import TensorBoard, ModelCheckpoint
+from tensorflow.keras.callbacks import TensorBoard, ModelCheckpoint, EarlyStopping
 import matplotlib.pyplot as plt
 
 from Configs.config import hyperparams
@@ -20,25 +20,26 @@ def train_model(model, ds_train, ds_val, epochs=hyperparams['epochs']):
         mode='max'
     )
 
+    early_stopping_callback = EarlyStopping(
+        monitor='val_accuracy',
+        patience=hyperparams['early_stopping_patience'],
+        restore_best_weights=True,
+        verbose=1
+    )
+
     history = model.fit(
         ds_train,
         validation_data=ds_val,
         epochs=epochs,
-        callbacks=[tensorboard_callback, model_checkpoint_callback]
+        callbacks=[tensorboard_callback, model_checkpoint_callback, early_stopping_callback]
     )
     return history
 
 if __name__ == "__main__":
-    # Load data splits
     ds_train, ds_val, ds_test = load_and_preprocess_data()
-
-    # Build model
     model = build_model()
-
-    # Train model with validation, logging, and best-model checkpointing
     history = train_model(model, ds_train, ds_val)
 
-    # Plot training & validation loss and accuracy values
     plt.figure(figsize=(12, 5))
 
     plt.subplot(1, 2, 1)
@@ -49,7 +50,6 @@ if __name__ == "__main__":
     plt.ylabel('Loss')
     plt.legend()
 
-    # Display hyperparameters on the loss plot
     hp_text = '\n'.join([
         f'Batch size: {hyperparams["batch_size"]}',
         f'Epochs: {hyperparams["epochs"]}',
@@ -59,7 +59,8 @@ if __name__ == "__main__":
         f'Dropout rate: {hyperparams["dropout_rate"]}',
         f'L2 lambda: {hyperparams["l2_lambda"]}',
         f'Activation 1: {hyperparams["activation_1"]}',
-        f'Activation 2: {hyperparams["activation_2"]}'
+        f'Activation 2: {hyperparams["activation_2"]}',
+        f'Early stopping patience: {hyperparams["early_stopping_patience"]}'  # Added here!
     ])
     plt.gca().text(
         0.98, 0.02, hp_text,
@@ -79,9 +80,6 @@ if __name__ == "__main__":
 
     plt.show()
 
-    # Load best saved model for evaluation
     best_model = tf.keras.models.load_model("Models/best_model.h5")
-
-    # Evaluate on test set
     test_loss, test_acc = evaluate_model(best_model, ds_test)
     print(f"Final test accuracy: {test_acc:.4f}")

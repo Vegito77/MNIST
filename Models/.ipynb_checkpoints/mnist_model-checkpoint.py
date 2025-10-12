@@ -14,9 +14,11 @@ def build_model(
         layers.Flatten(input_shape=input_shape),
         layers.Dense(
             hidden_units_1,
-            activation=activation_1,
+            activation=None,  # Use no activation—apply below!
             kernel_regularizer=regularizers.L2(l2_lambda)
         ),
+        layers.BatchNormalization(),           # <--- Added here
+        layers.Activation(activation_1),      # <--- Apply activation after BatchNorm
         layers.Dropout(dropout_rate),
         layers.Dense(
             10,
