@@ -1,13 +1,35 @@
 import tensorflow as tf
-from tensorflow.keras import layers, models
+from tensorflow.keras import layers, models, regularizers
 from Configs.config import hyperparams
 
-def build_model(hidden_units=hyperparams['hidden_units'], dropout_rate=hyperparams['dropout_rate'], learning_rate=hyperparams['learning_rate']):
+def build_model(
+    hidden_units_1=hyperparams['hidden_units_1'],
+    # hidden_units_2=hyperparams['hidden_units_2'],
+    dropout_rate=hyperparams['dropout_rate'],
+    learning_rate=hyperparams['learning_rate'],
+    l2_lambda=hyperparams['l2_lambda'],
+    input_shape=hyperparams['input_shape'],
+    activation_1=hyperparams['activation_1'],  # comma added here
+    # activation_2=hyperparams['activation_2']
+):
     model = models.Sequential([
-        layers.Flatten(input_shape=(28, 28, 1)),
-        layers.Dense(hidden_units, activation='relu'),
+        layers.Flatten(input_shape=input_shape),
+        layers.Dense(
+            hidden_units_1,
+            activation=activation_1,
+            kernel_regularizer=regularizers.L2(l2_lambda)
+        ),
+        # layers.Dense(
+        #     hidden_units_2,
+        #     activation=activation_2,
+        #     kernel_regularizer=regularizers.L2(l2_lambda)
+        # ),
         layers.Dropout(dropout_rate),
-        layers.Dense(10, activation='softmax')
+        layers.Dense(
+            10,
+            activation='softmax',
+            kernel_regularizer=regularizers.L2(l2_lambda)
+        )
     ])
 
     model.compile(
@@ -16,6 +38,8 @@ def build_model(hidden_units=hyperparams['hidden_units'], dropout_rate=hyperpara
         metrics=['accuracy']
     )
     return model
+
+
 
 def evaluate_model(model, ds_test):
     test_loss, test_acc = model.evaluate(ds_test)
