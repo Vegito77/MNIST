@@ -19,9 +19,9 @@ def load_and_preprocess_data(validation_split=0.1):
 
     batch_size = hyperparams['batch_size']
 
-    # Preprocess datasets: normalize, shuffle, batch, prefetch
-    ds_train = ds_train.map(normalize).shuffle(10000).batch(batch_size).prefetch(tf.data.AUTOTUNE)
-    ds_val = ds_val.map(normalize).batch(batch_size).prefetch(tf.data.AUTOTUNE)
-    ds_test = ds_test.map(normalize).batch(batch_size).prefetch(tf.data.AUTOTUNE)
+    # Preprocess datasets: normalize, shuffle, batch, cache, prefetch
+    ds_train = ds_train.map(normalize).shuffle(10000).batch(batch_size).cache().prefetch(tf.data.AUTOTUNE)
+    ds_val = ds_val.map(normalize).batch(batch_size).cache().prefetch(tf.data.AUTOTUNE)
+    ds_test = ds_test.map(normalize).batch(batch_size).cache().prefetch(tf.data.AUTOTUNE)
 
     return ds_train, ds_val, ds_test

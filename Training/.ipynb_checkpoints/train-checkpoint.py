@@ -1,11 +1,24 @@
 import datetime
 import tensorflow as tf
+import numpy as np
 from tensorflow.keras.callbacks import TensorBoard, ModelCheckpoint, EarlyStopping
 import matplotlib.pyplot as plt
 
+from tensorflow.keras import mixed_precision
+
 from Configs.config import hyperparams
 from Data.MNIST_Loader import load_and_preprocess_data
-from Models.mnist_model import build_model, evaluate_model
+from Models.mnist_model import build_model, build_ensemble, evaluate_model
+
+# Enable mixed precision globally
+mixed_precision.set_global_policy('mixed_float16')
+
+def prepare_datasets():
+    ds_train, ds_val, ds_test = load_and_preprocess_data()
+    ds_train = ds_train.cache().prefetch(buffer_size=tf.data.AUTOTUNE)
+    ds_val = ds_val.cache().prefetch(buffer_size=tf.data.AUTOTUNE)
+    ds_test = ds_test.cache().prefetch(buffer_size=tf.data.AUTOTUNE)
+    return ds_train, ds_val, ds_test
 
 def train_model(model, ds_train, ds_val, epochs=hyperparams['epochs']):
     log_dir = "logs/fit/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -35,51 +48,101 @@ def train_model(model, ds_train, ds_val, epochs=hyperparams['epochs']):
     )
     return history
 
+def train_ensemble(ds_train, ds_val):
+    ensemble_models = build_ensemble()
+    histories = []
+
+    for idx, model in enumerate(ensemble_models):
+        print(f"\nTraining model {idx+1}/{hyperparams['ensemble_size']}")
+        history = train_model(model, ds_train, ds_val)
+        model.save(f"Models/best_model_{idx+1}.h5")
+        histories.append(history)
+
+    return ensemble_models, histories
+
+def evaluate_ensemble(ensemble_models, ds_test):
+    all_preds = []
+    for model in ensemble_models:
+        preds = model.predict(ds_test)
+        all_preds.append(preds)
+
+    avg_preds = np.mean(all_preds, axis=0)
+    y_true = np.concatenate([y.numpy() for _, y in ds_test], axis=0)
+    y_pred = np.argmax(avg_preds, axis=1)
+
+    accuracy = np.mean(y_pred == y_true)
+    print(f"Ensemble test accuracy: {accuracy:.4f}")
+    return accuracy
+
 if __name__ == "__main__":
-    ds_train, ds_val, ds_test = load_and_preprocess_data()
-    model = build_model()
-    history = train_model(model, ds_train, ds_val)
+    ds_train, ds_val, ds_test = prepare_datasets()
 
-    plt.figure(figsize=(12, 5))
+    if hyperparams.get('ensemble_size', 1) > 1:
+        ensemble_models, histories = train_ensemble(ds_train, ds_val)
 
-    plt.subplot(1, 2, 1)
-    plt.plot(history.history['loss'], label='Train Loss')
-    plt.plot(history.history['val_loss'], label='Validation Loss')
-    plt.title('Loss per Epoch')
-    plt.xlabel('Epoch')
-    plt.ylabel('Loss')
-    plt.legend()
+        plt.figure(figsize=(12, 5))
+        plt.subplot(1, 2, 1)
+        plt.plot(histories[0].history['loss'], label='Train Loss')
+        plt.plot(histories[0].history['val_loss'], label='Validation Loss')
+        plt.title('Loss per Epoch (Model 1)')
+        plt.xlabel('Epoch')
+        plt.ylabel('Loss')
+        plt.legend()
 
-    hp_text = '\n'.join([
-        f'Batch size: {hyperparams["batch_size"]}',
-        f'Epochs: {hyperparams["epochs"]}',
-        f'Learning rate: {hyperparams["learning_rate"]}',
-        f'Hidden units 1: {hyperparams["hidden_units_1"]}',
-        f'Hidden units 2: {hyperparams["hidden_units_2"]}',
-        f'Dropout rate: {hyperparams["dropout_rate"]}',
-        f'L2 lambda: {hyperparams["l2_lambda"]}',
-        f'Activation 1: {hyperparams["activation_1"]}',
-        f'Activation 2: {hyperparams["activation_2"]}',
-        f'Early stopping patience: {hyperparams["early_stopping_patience"]}'  # Added here!
-    ])
-    plt.gca().text(
-        0.98, 0.02, hp_text,
-        fontsize=9,
-        ha='right', va='bottom',
-        bbox=dict(facecolor='white', alpha=0.7),
-        transform=plt.gca().transAxes
-    )
+        plt.subplot(1, 2, 2)
+        plt.plot(histories[0].history['accuracy'], label='Train Accuracy')
+        plt.plot(histories[0].history['val_accuracy'], label='Validation Accuracy')
+        plt.title('Accuracy per Epoch (Model 1)')
+        plt.xlabel('Epoch')
+        plt.ylabel('Accuracy')
+        plt.legend()
+        plt.show()
 
-    plt.subplot(1, 2, 2)
-    plt.plot(history.history['accuracy'], label='Train Accuracy')
-    plt.plot(history.history['val_accuracy'], label='Validation Accuracy')
-    plt.title('Accuracy per Epoch')
-    plt.xlabel('Epoch')
-    plt.ylabel('Accuracy')
-    plt.legend()
+        test_accuracy = evaluate_ensemble(ensemble_models, ds_test)
+        print(f"Final ensemble test accuracy: {test_accuracy:.4f}")
 
-    plt.show()
+    else:
+        model = build_model()
+        history = train_model(model, ds_train, ds_val)
 
-    best_model = tf.keras.models.load_model("Models/best_model.h5")
-    test_loss, test_acc = evaluate_model(best_model, ds_test)
-    print(f"Final test accuracy: {test_acc:.4f}")
+        plt.figure(figsize=(12, 5))
+        plt.subplot(1, 2, 1)
+        plt.plot(history.history['loss'], label='Train Loss')
+        plt.plot(history.history['val_loss'], label='Validation Loss')
+        plt.title('Loss per Epoch')
+        plt.xlabel('Epoch')
+        plt.ylabel('Loss')
+        plt.legend()
+
+        hp_text = '\n'.join([
+            f'Batch size: {hyperparams["batch_size"]}',
+            f'Epochs: {hyperparams["epochs"]}',
+            f'Learning rate: {hyperparams["learning_rate"]}',
+            f'Hidden units 1: {hyperparams["hidden_units_1"]}',
+            f'Hidden units 2: {hyperparams["hidden_units_2"]}',
+            f'Dropout rate: {hyperparams["dropout_rate"]}',
+            f'L2 lambda: {hyperparams["l2_lambda"]}',
+            f'Activation 1: {hyperparams["activation_1"]}',
+            f'Activation 2: {hyperparams["activation_2"]}',
+            f'Early stopping patience: {hyperparams["early_stopping_patience"]}'
+        ])
+        plt.gca().text(
+            0.98, 0.02, hp_text,
+            fontsize=9,
+            ha='right', va='bottom',
+            bbox=dict(facecolor='white', alpha=0.7),
+            transform=plt.gca().transAxes
+        )
+
+        plt.subplot(1, 2, 2)
+        plt.plot(history.history['accuracy'], label='Train Accuracy')
+        plt.plot(history.history['val_accuracy'], label='Validation Accuracy')
+        plt.title('Accuracy per Epoch')
+        plt.xlabel('Epoch')
+        plt.ylabel('Accuracy')
+        plt.legend()
+        plt.show()
+
+        best_model = tf.keras.models.load_model("Models/best_model.h5")
+        test_loss, test_acc = evaluate_model(best_model, ds_test)
+        print(f"Final test accuracy: {test_acc:.4f}")

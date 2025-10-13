@@ -14,25 +14,32 @@ def build_model(
         layers.Flatten(input_shape=input_shape),
         layers.Dense(
             hidden_units_1,
-            activation=None,  # Use no activation—apply below!
+            activation=None,
             kernel_regularizer=regularizers.L2(l2_lambda)
         ),
-        layers.BatchNormalization(),           # <--- Added here
-        layers.Activation(activation_1),      # <--- Apply activation after BatchNorm
+        layers.BatchNormalization(),
+        layers.Activation(activation_1),
         layers.Dropout(dropout_rate),
         layers.Dense(
             10,
-            activation='softmax',
+            activation=None,  # Use logits, no softmax because mixed precision
             kernel_regularizer=regularizers.L2(l2_lambda)
         )
     ])
 
     model.compile(
         optimizer=tf.keras.optimizers.Adam(learning_rate=learning_rate),
-        loss='sparse_categorical_crossentropy',
+        loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
         metrics=['accuracy']
     )
     return model
+
+def build_ensemble():
+    ensemble_models = []
+    for _ in range(hyperparams['ensemble_size']):
+        model = build_model()
+        ensemble_models.append(model)
+    return ensemble_models
 
 def evaluate_model(model, ds_test):
     test_loss, test_acc = model.evaluate(ds_test)
