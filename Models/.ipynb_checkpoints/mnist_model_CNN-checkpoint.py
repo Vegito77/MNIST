@@ -10,27 +10,33 @@ def build_model_CNN(
     activation_1=hyperparams['activation_1'],
 ):
     model = models.Sequential([
-        layers.Conv2D(32, kernel_size=(3, 3), padding='same', input_shape=input_shape,
+        # 1st Conv-Pool block
+        layers.Conv2D(20, kernel_size=(5, 5), padding='same', 
+                      input_shape=input_shape,
                       kernel_regularizer=regularizers.L2(l2_lambda)),
         layers.BatchNormalization(),
         layers.Activation(activation_1),
         layers.MaxPooling2D(pool_size=(2, 2)),
         layers.Dropout(dropout_rate),
 
-        layers.Conv2D(64, kernel_size=(3, 3), padding='same',
+        # 2nd Conv-Pool block
+        layers.Conv2D(40, kernel_size=(5, 5), padding='same',
                       kernel_regularizer=regularizers.L2(l2_lambda)),
         layers.BatchNormalization(),
         layers.Activation(activation_1),
         layers.MaxPooling2D(pool_size=(2, 2)),
         layers.Dropout(dropout_rate),
 
+        # Flatten and fully connected layer
         layers.Flatten(),
-        layers.Dense(128, kernel_regularizer=regularizers.L2(l2_lambda)),
+        layers.Dense(100,
+                     kernel_regularizer=regularizers.L2(l2_lambda)),
         layers.BatchNormalization(),
         layers.Activation(activation_1),
         layers.Dropout(dropout_rate),
 
-        layers.Dense(10, activation=None,  # Logits, no softmax here
+        # Output layer with logits (no softmax)
+        layers.Dense(10, activation=None,
                      kernel_regularizer=regularizers.L2(l2_lambda))
     ])
 
